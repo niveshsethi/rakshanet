@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BreathEasy — 3D Plant Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050e08;--bg2:#0a180d;--surface:#0f2014;--surface2:#162b1c;
+  --green:#3ddc6e;--green2:#27a84e;--green3:#1a6b34;
+  --gold:#c8a84b;--gold2:#f0d080;
+  --text:#e8f5ec;--text2:#9bbea6;--text3:#5a7a63;
+  --red:#e05555;--amber:#d4942a;--sky:#4ab8d4;
+  --r:14px;--rs:8px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif}
+#app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:58px;
+  background:rgba(5,14,8,0.92);border-bottom:1px solid rgba(61,220,110,0.12);
+  backdrop-filter:blur(12px);position:relative;z-index:100;flex-shrink:0}
+#nav-logo{display:flex;align-items:center;gap:10px}
+#nav-title{font-family:'Playfair Display',serif;font-size:1.25rem;color:var(--text);letter-spacing:-0.01em}
+#nav-sub{font-size:0.72rem;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase}
+#nav-status{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text2)}
+#status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:dotpulse 2s ease-in-out infinite}
+@keyframes dotpulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(61,220,110,0.4)}50%{opacity:.8;box-shadow:0 0 0 4px rgba(61,220,110,0)}}
+#main{flex:1;display:grid;grid-template-columns:400px 1fr;overflow:hidden;position:relative}
+#panel{background:var(--bg2);border-right:1px solid rgba(61,220,110,0.1);overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--green3) transparent}
+#panel::-webkit-scrollbar{width:4px}
+#panel::-webkit-scrollbar-thumb{background:var(--green3);border-radius:2px}
+#canvas-wrap{position:relative;overflow:hidden;background:var(--bg)}
+#three-canvas{width:100%;height:100%;display:block}
+#canvas-label{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  background:rgba(5,14,8,0.75);border:1px solid rgba(61,220,110,0.2);border-radius:20px;
+  padding:6px 16px;font-size:0.72rem;color:var(--text2);white-space:nowrap;backdrop-filter:blur(8px)}
+#plant-tooltip{position:absolute;display:none;background:rgba(5,14,8,0.92);
+  border:1px solid rgba(61,220,110,0.3);border-radius:var(--r);padding:14px 16px;
+  max-width:220px;pointer-events:none;backdrop-filter:blur(12px);
+  box-shadow:0 4px 24px rgba(0,0,0,0.4);z-index:10}
+#plant-tooltip h4{font-family:'Playfair Display',serif;font-size:0.95rem;color:var(--green);margin-bottom:4px}
+#plant-tooltip p{font-size:0.75rem;color:var(--text2);line-height:1.5}
+#particles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#upload-screen{padding:2rem;flex:1;display:flex;flex-direction:column;gap:1.25rem}
+.section-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:.75rem}
+.upload-drop{border:1.5px dashed rgba(61,220,110,0.25);border-radius:var(--r);padding:2rem 1.5rem;
+  text-align:center;cursor:pointer;background:rgba(61,220,110,0.03);transition:all .2s;position:relative}
+.upload-drop:hover,.upload-drop.drag{border-color:var(--green);background:rgba(61,220,110,0.06)}
+.upload-drop p{color:var(--text2);font-size:.875rem;margin-bottom:4px}
+.upload-drop small{color:var(--text3);font-size:.75rem}
+.img-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.img-thumb{position:relative;width:72px;height:72px;border-radius:var(--rs);overflow:hidden;border:1px solid rgba(61,220,110,.2)}
+.img-thumb img{width:100%;height:100%;object-fit:cover}
+.img-thumb button{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;
+  background:rgba(0,0,0,.7);color:#fff;border:none;cursor:pointer;font-size:.65rem;
+  display:flex;align-items:center;justify-content:center}
+.field-group{display:flex;flex-direction:column;gap:10px}
+.field label{display:block;font-size:.75rem;color:var(--text3);margin-bottom:5px;font-weight:500;letter-spacing:.03em}
+.field input,.field select{width:100%;padding:.6rem .85rem;background:rgba(255,255,255,.04);
+  border:1px solid rgba(61,220,110,.15);border-radius:var(--rs);color:var(--text);
+  font-family:'Inter',sans-serif;font-size:.875rem;outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus{border-color:rgba(61,220,110,.45)}
+.field input::placeholder{color:var(--text3)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-analyze{width:100%;padding:.85rem;border:none;border-radius:var(--r);
+  background:linear-gradient(135deg,var(--green2),var(--green3));color:#fff;
+  font-family:'Inter',sans-serif;font-size:.9rem;font-weight:500;cursor:pointer;
+  transition:all .2s;letter-spacing:.02em;position:relative;overflow:hidden}
+.btn-analyze:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(39,168,78,.35)}
+.btn-analyze:active{transform:translateY(0)}
+.btn-analyze:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{padding:.55rem 1.25rem;border:1px solid rgba(61,220,110,.2);border-radius:var(--rs);
+  background:transparent;color:var(--text2);font-family:'Inter',sans-serif;font-size:.8rem;cursor:pointer;transition:all .2s}
+.btn-secondary:hover{border-color:var(--green);color:var(--text)}
+#loading-screen{padding:2rem;flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem}
+.loader-ring{width:60px;height:60px;border:2px solid rgba(61,220,110,.1);border-top:2px solid var(--green);
+  border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-steps{width:100%;max-width:280px;display:flex;flex-direction:column;gap:10px}
+.loader-step{display:flex;align-items:center;gap:10px}
+.step-dot{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;font-size:.65rem;transition:all .3s}
+.step-dot.done{background:var(--green);color:#000}
+.step-dot.active{background:rgba(61,220,110,.15);border:1px solid var(--green);animation:dotpulse 1s ease-in-out infinite}
+.step-dot.wait{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.step-text{font-size:.82rem;transition:color .3s}
+.step-text.done{color:var(--text2)}.step-text.active{color:var(--text)}.step-text.wait{color:var(--text3)}
+#results-screen{padding:1.5rem;flex:1;display:none;flex-direction:column;gap:1rem}
+#results-screen::-webkit-scrollbar{width:4px}
+#results-screen::-webkit-scrollbar-thumb{background:var(--green3);border-radius:2px}
+.env-card{background:rgba(61,220,110,.04);border:1px solid rgba(61,220,110,.12);border-radius:var(--r);padding:1rem 1.1rem}
+.env-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px}
+.env-city{font-family:'Playfair Display',serif;font-size:1rem;color:var(--text)}
+.env-meta{font-size:.78rem;color:var(--text2);margin-top:2px}
+.aqi-badge{padding:3px 9px;border-radius:12px;font-size:.72rem;font-weight:500}
+.tag{padding:3px 9px;border-radius:12px;font-size:.72rem;font-weight:500;background:rgba(255,255,255,.05);color:var(--text2)}
+.env-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.impact-banner{background:linear-gradient(135deg,rgba(39,168,78,.15),rgba(26,107,52,.1));
+  border:1px solid rgba(61,220,110,.2);border-radius:var(--r);padding:1rem 1.25rem}
+.impact-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--green);margin-bottom:6px}
+.impact-text{font-size:.85rem;color:var(--text);line-height:1.6}
+.impact-priority{font-size:.8rem;color:var(--text2);margin-top:8px;padding-top:8px;border-top:1px solid rgba(61,220,110,.1)}
+.room-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:12px;
+  font-size:.72rem;background:rgba(200,168,75,.12);color:var(--gold)}
+.plants-list{display:flex;flex-direction:column;gap:10px}
+.plant-card{background:var(--surface);border:1px solid rgba(61,220,110,.1);border-radius:var(--r);
+  padding:1.1rem;cursor:pointer;transition:all .2s}
+.plant-card:hover,.plant-card.active{border-color:rgba(61,220,110,.35);background:var(--surface2);
+  box-shadow:0 0 0 1px rgba(61,220,110,.1)}
+.plant-card-top{display:flex;gap:12px;align-items:flex-start}
+.plant-emoji{font-size:1.8rem;line-height:1;flex-shrink:0}
+.plant-info{flex:1;min-width:0}
+.plant-name{font-family:'Playfair Display',serif;font-size:.95rem;color:var(--text);margin-bottom:1px}
+.plant-sci{font-size:.73rem;color:var(--text3);font-style:italic;margin-bottom:6px}
+.plant-tags{display:flex;gap:5px;flex-wrap:wrap}
+.care-badge{padding:2px 8px;border-radius:10px;font-size:.68rem;font-weight:500;border:1px solid}
+.care-easy{background:rgba(61,220,110,.1);color:var(--green);border-color:rgba(61,220,110,.25)}
+.care-moderate{background:rgba(212,148,42,.1);color:var(--amber);border-color:rgba(212,148,42,.25)}
+.care-demanding{background:rgba(224,85,85,.1);color:var(--red);border-color:rgba(224,85,85,.25)}
+.plant-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(61,220,110,.08)}
+.plant-card.active .plant-detail{display:block}
+.placement-box{background:rgba(61,220,110,.06);border-radius:var(--rs);padding:.65rem .85rem;
+  margin-bottom:8px;border-left:2px solid var(--green3)}
+.placement-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--green);margin-bottom:3px}
+.placement-text{font-size:.8rem;color:var(--text);line-height:1.5}
+.placement-why{font-size:.75rem;color:var(--text2);margin-top:3px;font-style:italic}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.detail-cell{background:rgba(255,255,255,.03);border-radius:var(--rs);padding:.6rem .75rem}
+.detail-cell-label{font-size:.68rem;color:var(--text3);margin-bottom:2px}
+.detail-cell-val{font-size:.8rem;color:var(--text)}
+.o2-bar{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin-top:4px}
+.o2-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green3),var(--green));transition:width .8s ease}
+.fact-box{background:rgba(200,168,75,.06);border-radius:var(--rs);padding:.65rem .85rem;
+  border-left:2px solid var(--gold);font-size:.78rem;color:var(--text2);line-height:1.5}
+.fact-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:3px}
+.err-box{background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.25);border-radius:var(--rs);
+  padding:.8rem 1rem;font-size:.82rem;color:#f09090}
+</style>
+</head>
+<body>
+<div id="app">
+<nav id="nav">
+  <div id="nav-logo">
+    <canvas id="logo-canvas" width="32" height="32"></canvas>
+    <div><div id="nav-title">BreathEasy</div><div id="nav-sub">AI Plant Intelligence</div></div>
+  </div>
+  <div id="nav-status"><div id="status-dot"></div><span id="status-text">Ready</span></div>
+</nav>
+<div id="main">
+  <div id="panel">
+    <div id="upload-screen">
+      <div>
+        <div class="section-label">Room photos</div>
+        <div class="upload-drop" id="drop-zone">
+          <div style="font-size:2rem;margin-bottom:.6rem">&#11014;</div>
+          <p>Drop room photos here or click to browse</p>
+          <small>2-6 angles recommended &middot; JPG PNG WebP</small>
+          <input type="file" id="file-input" accept="image/*" multiple style="display:none"/>
+        </div>
+        <div class="img-grid" id="img-grid"></div>
+      </div>
+      <div class="field-group">
+        <div class="section-label">Location &amp; occupancy</div>
+        <div class="grid2">
+          <div class="field"><label>City</label><input type="text" id="city-input" placeholder="e.g. Indore, Delhi"/></div>
+          <div class="field"><label>Peak occupants</label><input type="number" id="people-input" value="2" min="1" max="100"/></div>
+        </div>
+      </div>
+      <div id="error-box" class="err-box" style="display:none"></div>
+      <button class="btn-analyze" id="analyze-btn" disabled>Upload photos to analyze &rarr;</button>
+      <p style="font-size:.7rem;color:var(--text3);text-align:center">Powered by Gemini 1.5 Pro Vision &middot; OpenWeatherMap AQI</p>
+    </div>
+    <div id="loading-screen">
+      <div class="loader-ring"></div>
+      <p style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--text)">Analyzing your space&hellip;</p>
+      <div class="loader-steps" id="loader-steps">
+        <div class="loader-step"><div class="step-dot wait" id="sd0"></div><span class="step-text wait" id="st0">Fetching weather &amp; AQI</span></div>
+        <div class="loader-step"><div class="step-dot wait" id="sd1"></div><span class="step-text wait" id="st1">Sending photos to Gemini Vision</span></div>
+        <div class="loader-step"><div class="step-dot wait" id="sd2"></div><span class="step-text wait" id="st2">Detecting light sources &amp; aesthetics</span></div>
+        <div class="loader-step"><div class="step-dot wait" id="sd3"></div><span class="step-text wait" id="st3">Selecting optimal plants</span></div>
+        <div class="loader-step"><div class="step-dot wait" id="sd4"></div><span class="step-text wait" id="st4">Building 3D room scene</span></div>
+      </div>
+    </div>
+    <div id="results-screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--text)">Your recommendations</div>
+        <button class="btn-secondary" id="reset-btn">&larr; New scan</button>
+      </div>
+      <div id="env-card-wrap"></div>
+      <div id="room-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="impact-wrap"></div>
+      <div class="section-label" style="margin-top:4px">Recommended plants</div>
+      <div class="plants-list" id="plants-list"></div>
+      <div style="height:1rem"></div>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="three-canvas"></canvas>
+    <div id="canvas-label">&#128432; Drag to orbit &middot; Scroll to zoom</div>
+    <div id="plant-tooltip"><h4 id="tt-name"></h4><p id="tt-desc"></p></div>
+    <div id="particles"></div>
+  </div>
+</div>
+</div>
+<script>
+// =====================================================
+// API KEYS — set these on your end, never shown to user
+// =====================================================
+const GEMINI_KEY  = "YOUR_GEMINI_API_KEY_HERE";
+const WEATHER_KEY = "YOUR_OPENWEATHERMAP_KEY_HERE";
+// =====================================================
+
+// Logo animation
+(function(){
+  const c=document.getElementById('logo-canvas'),ctx=c.getContext('2d');
+  function draw(t){
+    ctx.clearRect(0,0,32,32);
+    ctx.fillStyle='#0f2014';ctx.beginPath();ctx.roundRect(0,0,32,32,6);ctx.fill();
+    [{x:16,y:22,rx:4,ry:9,rot:-.4,c:'#3ddc6e'},{x:16,y:22,rx:4,ry:9,rot:.4,c:'#27a84e'},{x:16,y:22,rx:3,ry:7,rot:0,c:'#4ff07e'}].forEach(l=>{
+      ctx.save();ctx.translate(l.x,l.y);ctx.rotate(l.rot+Math.sin(t)*.05);
+      ctx.fillStyle=l.c;ctx.beginPath();ctx.ellipse(0,-l.ry/2,l.rx,l.ry,0,0,Math.PI*2);ctx.fill();ctx.restore();
+    });
+    ctx.fillStyle='#1a6b34';ctx.fillRect(15,22,2,8);
+  }
+  let t=0;(function loop(){draw(t);t+=.02;requestAnimationFrame(loop)})();
+})();
+
+// Particles
+(function(){
+  const wrap=document.getElementById('particles');
+  for(let i=0;i<18;i++){
+    const p=document.createElement('div'),s=Math.random()*3+1;
+    const ks=`@keyframes fp${i}{0%,100%{transform:translateY(0) translateX(0)}50%{transform:translateY(${(Math.random()-.5)*40}px) translateX(${(Math.random()-.5)*20}px)}}`;
+    const st=document.createElement('style');st.textContent=ks;document.head.appendChild(st);
+    p.style.cssText=`position:absolute;width:${s}px;height:${s}px;border-radius:50%;background:rgba(61,220,110,${Math.random()*.3+.05});left:${Math.random()*100}%;top:${Math.random()*100}%;animation:fp${i} ${Math.random()*8+6}s ease-in-out infinite;animation-delay:${Math.random()*5}s`;
+    wrap.appendChild(p);
+  }
+})();
+
+// ===================== THREE.JS =====================
+const canvas3=document.getElementById('three-canvas');
+const renderer=new THREE.WebGLRenderer({canvas:canvas3,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x050e08,.03);
+const camera=new THREE.PerspectiveCamera(45,1,.1,100);
+camera.position.set(8,6,8);camera.lookAt(0,0,0);
+
+function resizeR(){
+  const wrap=document.getElementById('canvas-wrap'),w=wrap.clientWidth,h=wrap.clientHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+resizeR();new ResizeObserver(resizeR).observe(document.getElementById('canvas-wrap'));
+
+// Lights
+scene.add(new THREE.AmbientLight(0x1a3020,1.2));
+const sun=new THREE.DirectionalLight(0xfff5e0,1.8);sun.position.set(6,10,4);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-10;sun.shadow.camera.right=10;sun.shadow.camera.top=10;sun.shadow.camera.bottom=-10;
+scene.add(sun);
+const fill=new THREE.PointLight(0x2a6040,.8,20);fill.position.set(-5,3,-3);scene.add(fill);
+const rim=new THREE.DirectionalLight(0x00ff88,.3);rim.position.set(-4,2,6);scene.add(rim);
+
+// Orbit
+let drag=false,pm={x:0,y:0},sph={theta:Math.PI/4,phi:Math.PI/3,r:12};
+function updCam(){
+  camera.position.x=sph.r*Math.sin(sph.phi)*Math.sin(sph.theta);
+  camera.position.y=sph.r*Math.cos(sph.phi);
+  camera.position.z=sph.r*Math.sin(sph.phi)*Math.cos(sph.theta);
+  camera.lookAt(0,1,0);
+}
+updCam();
+canvas3.addEventListener('mousedown',e=>{drag=true;pm={x:e.clientX,y:e.clientY}});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  sph.theta-=(e.clientX-pm.x)*.006;
+  sph.phi=Math.max(.2,Math.min(Math.PI*.48,sph.phi+(e.clientY-pm.y)*.006));
+  pm={x:e.clientX,y:e.clientY};updCam();
+});
+canvas3.addEventListener('wheel',e=>{sph.r=Math.max(4,Math.min(20,sph.r+e.deltaY*.02));updCam();},{passive:true});
+let lt=null;
+canvas3.addEventListener('touchstart',e=>{if(e.touches.length===1)lt={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
+canvas3.addEventListener('touchmove',e=>{
+  if(e.touches.length===1&&lt){
+    sph.theta-=(e.touches[0].clientX-lt.x)*.008;
+    sph.phi=Math.max(.2,Math.min(Math.PI*.48,sph.phi+(e.touches[0].clientY-lt.y)*.008));
+    lt={x:e.touches[0].clientX,y:e.touches[0].clientY};updCam();
+  }
+},{passive:true});
+
+const roomObjs=[];
+function clrRoom(){roomObjs.forEach(o=>scene.remove(o));roomObjs.length=0}
+
+function box(w,h,d,col,x,y,z,tr=false,op=1){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({color:col,transparent:tr,opacity:op,roughness:.85,metalness:.02,side:tr?THREE.BackSide:THREE.FrontSide}));
+  m.position.set(x,y,z);m.castShadow=!tr;m.receiveShadow=true;return m;
+}
+
+function makePlant(type,pos,col){
+  const g=new THREE.Group();g.position.set(...pos);
+  const pot=new THREE.Mesh(new THREE.CylinderGeometry(.22,.15,.35,12),new THREE.MeshStandardMaterial({color:0x8B6355,roughness:.9}));
+  pot.position.y=.175;pot.castShadow=true;g.add(pot);
+  const soil=new THREE.Mesh(new THREE.CylinderGeometry(.21,.21,.05,12),new THREE.MeshStandardMaterial({color:0x3d2010,roughness:1}));
+  soil.position.y=.33;g.add(soil);
+  const lm=new THREE.MeshStandardMaterial({color:col,roughness:.75});
+  if(type==='bushy'){
+    for(let i=0;i<6;i++){const r=Math.random()*.25,a=Math.random()*Math.PI*2,s=.17+Math.random()*.13;
+      const lf=new THREE.Mesh(new THREE.SphereGeometry(s,8,6),lm.clone());
+      lf.position.set(Math.cos(a)*r,.55+Math.random()*.2+s,Math.sin(a)*r);lf.castShadow=true;g.add(lf);}
+  } else if(type==='tall'){
+    const st=new THREE.Mesh(new THREE.CylinderGeometry(.03,.04,1.1,8),new THREE.MeshStandardMaterial({color:0x1a5c25,roughness:.9}));
+    st.position.y=.93;g.add(st);
+    for(let i=0;i<4;i++){const lf=new THREE.Mesh(new THREE.ConeGeometry(.22,.55,6),lm.clone());
+      lf.position.set(i%2===0?.2:-.2,.5+i*.28,0);lf.rotation.z=i%2===0?-.5:.5;lf.castShadow=true;g.add(lf);}
+  } else if(type==='spreading'){
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;
+      const lf=new THREE.Mesh(new THREE.ConeGeometry(.08,.55,5),lm.clone());
+      lf.position.set(Math.cos(a)*.28,.65,Math.sin(a)*.28);
+      lf.rotation.z=Math.cos(a)*.7;lf.rotation.x=Math.sin(a)*.7;lf.castShadow=true;g.add(lf);}
+  } else if(type==='cactus'){
+    const bm=new THREE.MeshStandardMaterial({color:0x3a8a40,roughness:.6});
+    const bd=new THREE.Mesh(new THREE.CylinderGeometry(.14,.16,.6,10),bm);bd.position.y=.65;g.add(bd);
+    [-1,1].forEach(s=>{const am=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.3,8),bm.clone());
+      am.position.set(s*.22,.78,0);am.rotation.z=s*Math.PI/3;g.add(am);});
+  } else {
+    for(let i=0;i<7;i++){const a=(i/7)*Math.PI*2,r=.1+Math.random()*.25;
+      const lf=new THREE.Mesh(new THREE.SphereGeometry(.09+Math.random()*.06,6,5),lm.clone());
+      lf.position.set(Math.cos(a)*r,.4+Math.random()*.3,Math.sin(a)*r);lf.castShadow=true;g.add(lf);}
+  }
+  // glow
+  const gw=new THREE.Mesh(new THREE.SphereGeometry(.55,8,6),new THREE.MeshBasicMaterial({color:0x3ddc6e,transparent:true,opacity:.05}));
+  gw.position.set(0,.7,0);g.add(gw);
+  return g;
+}
+
+function buildRoom(aesthetic,plants){
+  clrRoom();
+  const fc=aesthetic==='cozy'?0x8B6355:aesthetic==='industrial'?0x444444:aesthetic==='minimalist'?0xd4cfc8:0xb5a898;
+  const wc=aesthetic==='cozy'?0xf0e8d8:aesthetic==='industrial'?0x555555:aesthetic==='minimalist'?0xf5f5f0:0xe8ddd0;
+  const W=8,H=5,D=8;
+  [box(W,.15,D,fc,0,-.075,0),box(W,H,.15,wc,0,H/2,-D/2+.075),
+   box(.15,H,D,wc,-W/2+.075,H/2,0),box(.15,H,3,wc,W/2-.075,H/2,-2),
+   box(.15,1.5,D,wc,W/2-.075,H-.75,0),box(.15,2.5,1.5,wc,W/2-.075,1.25,2.25),
+   box(W,.12,D,wc,0,H+.06,0)].forEach(m=>{scene.add(m);roomObjs.push(m)});
+  // Window frame
+  const wfm=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.3,metalness:.1});
+  [[.05,2.5,1.5,W/2,2.75,.75],[.05,2.5,.08,W/2,2.75,1.43],[.05,2.5,.08,W/2,2.75,.07],
+   [.05,.08,1.5,W/2,1.55,.75],[.05,.08,1.5,W/2,3.95,.75],[.05,.08,.8,W/2,2.75,.41],[.05,.08,.8,W/2,2.75,1.09]
+  ].forEach(([w,h,d,x,y,z])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wfm);m.position.set(x,y,z);scene.add(m);roomObjs.push(m)});
+  // Glass
+  const gls=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.3),new THREE.MeshStandardMaterial({color:0x88ccff,transparent:true,opacity:.15,emissive:0x4488bb,emissiveIntensity:.4,side:THREE.DoubleSide}));
+  gls.rotation.y=Math.PI/2;gls.position.set(W/2-.05,2.75,.75);scene.add(gls);roomObjs.push(gls);
+  // Ray light
+  const rl=new THREE.PointLight(0xfff0cc,2.5,10);rl.position.set(W/2-1,2.75,.75);scene.add(rl);roomObjs.push(rl);
+  // Furniture
+  const wdc=aesthetic==='industrial'?0x5a4a3a:aesthetic==='minimalist'?0xd0c0a8:0x9a7050;
+  const sc=aesthetic==='cozy'?0xc07050:0x607090;
+  [box(2.5,.5,.9,wdc,-1.5,.25,-2.8),box(2.5,.6,.2,wdc,-1.5,.75,-3.2),box(2.3,.2,.8,sc,-1.5,.6,-2.8),
+   box(1.2,.06,.7,wdc,.5,.45,-2.5),box(.06,.45,.06,wdc,0,.225,-2.2),box(.06,.45,.06,wdc,1,.225,-2.2),
+   box(.06,.45,.06,wdc,0,.225,-2.8),box(.06,.45,.06,wdc,1,.225,-2.8),
+   box(1.2,2.2,.35,wdc,2.5,1.1,-3.7)].forEach(m=>{scene.add(m);roomObjs.push(m)});
+  // Books
+  [0x8b3a3a,0x3a5a8b,0x5a8b3a,0x8b7a3a,0x6a3a8b].forEach((c,i)=>{
+    const bk=box(.12,.65+Math.random()*.3,.28,c,2.1+i*.2,1.45,-3.7);scene.add(bk);roomObjs.push(bk);});
+  // Rug
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(3,2),new THREE.MeshStandardMaterial({color:aesthetic==='cozy'?0x8B4513:aesthetic==='minimalist'?0xc8b8a8:0x6a5a8a,roughness:1}));
+  rug.rotation.x=-Math.PI/2;rug.position.set(.5,.01,-2.5);scene.add(rug);roomObjs.push(rug);
+  // Ceiling light
+  const clf=box(.4,.06,.4,0xcccccc,0,H-.09,0);scene.add(clf);roomObjs.push(clf);
+  const cl=new THREE.PointLight(0xfff8e8,1.5,8);cl.position.set(0,H-.2,0);scene.add(cl);roomObjs.push(cl);
+
+  // Plants
+  const ptypes=['bushy','tall','spreading','cactus','trailing'];
+  const pcolors=[0x2d9e50,0x3dbd6a,0x1a7a38,0x4cba5a,0x25a845];
+  const ppos=[[W/2-.7,0,.75],[-W/2+.8,0,-3.5],[2.2,0,-3.5],[W/2-.7,0,-3.2],[-.5,0,-1.5]];
+  const meshes=[];
+  (plants||[]).slice(0,5).forEach((p,i)=>{
+    const m=makePlant(ptypes[i%5],ppos[i]||[0,0,0],pcolors[i%5]);
+    m.userData={name:p.name,desc:p.placement,index:i};
+    scene.add(m);roomObjs.push(m);meshes.push(m);
+    // Number label
+    const lc=document.createElement('canvas');lc.width=64;lc.height=64;
+    const lx=lc.getContext('2d');lx.fillStyle='rgba(61,220,110,.9)';lx.beginPath();lx.arc(32,32,28,0,Math.PI*2);lx.fill();
+    lx.fillStyle='#000';lx.font='bold 28px Inter';lx.textAlign='center';lx.textBaseline='middle';lx.fillText(i+1,32,32);
+    const sp=new THREE.Mesh(new THREE.PlaneGeometry(.4,.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(lc),transparent:true,depthWrite:false}));
+    sp.position.set(m.position.x,m.position.y+1.7,m.position.z);sp.userData.isBillboard=true;
+    scene.add(sp);roomObjs.push(sp);
+  });
+  return meshes;
+}
+
+let plantRefs=[];
+const tt=document.getElementById('plant-tooltip'),ttn=document.getElementById('tt-name'),ttd=document.getElementById('tt-desc');
+const ray=new THREE.Raycaster(),mu=new THREE.Vector2();
+canvas3.addEventListener('mousemove',e=>{
+  const rect=canvas3.getBoundingClientRect();
+  mu.x=((e.clientX-rect.left)/rect.width)*2-1;
+  mu.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  ray.setFromCamera(mu,camera);
+  const hits=ray.intersectObjects(plantRefs,true);
+  if(hits.length){
+    let obj=hits[0].object;while(obj.parent&&!obj.userData.name)obj=obj.parent;
+    if(obj.userData.name){
+      tt.style.display='block';
+      tt.style.left=(e.clientX-canvas3.getBoundingClientRect().left+12)+'px';
+      tt.style.top=(e.clientY-canvas3.getBoundingClientRect().top-10)+'px';
+      ttn.textContent=(obj.userData.index+1)+'. '+obj.userData.name;
+      ttd.textContent=obj.userData.desc||'';
+      canvas3.style.cursor='pointer';return;
+    }
+  }
+  tt.style.display='none';canvas3.style.cursor='default';
+});
+canvas3.addEventListener('mouseleave',()=>tt.style.display='none');
+
+function highlightPlant(i){
+  plantRefs.forEach((m,idx)=>{
+    m.traverse(c=>{if(c.isMesh&&c.material&&!c.userData.isBillboard){c.material.emissive=new THREE.Color(idx===i?0x1a5c25:0x000000);c.material.emissiveIntensity=idx===i?.4:0;}});
+  });
+  if(plantRefs[i]){
+    const p=plantRefs[i].position;
+    const tgt={theta:Math.atan2(p.x,p.z)+Math.PI/6,phi:1.0,r:7};
+    let prog=0,st=spherical.theta,sp2=sph.phi,sr=sph.r;
+    const sa=()=>{
+      prog+=.04;if(prog>=1){sph.theta=tgt.theta;sph.phi=tgt.phi;sph.r=tgt.r;updCam();return;}
+      sph.theta=st+(tgt.theta-st)*prog;sph.phi=sp2+(tgt.phi-sp2)*prog;sph.r=sr+(tgt.r-sr)*prog;updCam();requestAnimationFrame(sa);
+    };sa();
+  }
+}
+
+const clk=new THREE.Clock();
+(function loop(){
+  requestAnimationFrame(loop);
+  const t=clk.getElapsedTime();
+  plantRefs.forEach((m,i)=>{m.rotation.z=Math.sin(t*.8+i*1.2)*.015;m.rotation.x=Math.cos(t*.6+i*.8)*.01;});
+  scene.traverse(o=>{if(o.userData&&o.userData.isBillboard)o.lookAt(camera.position)});
+  renderer.render(scene,camera);
+})();
+
+buildRoom('modern',[]);
+
+// ===================== APP LOGIC =====================
+let images=[];
+const dropZone=document.getElementById('drop-zone'),fileInput=document.getElementById('file-input');
+const imgGrid=document.getElementById('img-grid'),analyzeBtn=document.getElementById('analyze-btn');
+const cityInput=document.getElementById('city-input'),peopleInput=document.getElementById('people-input');
+const errBox=document.getElementById('error-box');
+
+function addFiles(files){images=[...images,...Array.from(files).filter(f=>f.type.startsWith('image/'))].slice(0,6);renderThumbs();updateBtn();}
+function renderThumbs(){
+  imgGrid.innerHTML='';
+  images.forEach((img,i)=>{
+    const url=URL.createObjectURL(img),div=document.createElement('div');div.className='img-thumb';
+    div.innerHTML=`<img src="${url}"/><button onclick="rmImg(${i})">x</button>`;imgGrid.appendChild(div);
+  });
+}
+window.rmImg=i=>{images.splice(i,1);renderThumbs();updateBtn()};
+function updateBtn(){
+  const ok=images.length>0&&cityInput.value.trim();
+  analyzeBtn.disabled=!ok;
+  analyzeBtn.innerHTML=images.length===0?'Upload photos to analyze &rarr;':!cityInput.value.trim()?'Enter your city &rarr;':'Analyze room &amp; recommend plants &rarr;';
+}
+dropZone.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>addFiles(e.target.files));
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag');addFiles(e.dataTransfer.files)});
+cityInput.addEventListener('input',updateBtn);
+
+function showScreen(s){
+  document.getElementById('upload-screen').style.display=s==='upload'?'flex':'none';
+  document.getElementById('loading-screen').style.display=s==='loading'?'flex':'none';
+  document.getElementById('results-screen').style.display=s==='results'?'flex':'none';
+}
+showScreen('upload');
+
+function setStep(n){
+  for(let i=0;i<5;i++){
+    document.getElementById('sd'+i).className='step-dot '+(i<n?'done':i===n?'active':'wait');
+    document.getElementById('st'+i).className='step-text '+(i<n?'done':i===n?'active':'wait');
+  }
+}
+function setSt(t){document.getElementById('status-text').textContent=t}
+function toB64(f){return new Promise((r,j)=>{const rd=new FileReader();rd.onload=()=>r(rd.result.split(',')[1]);rd.onerror=j;rd.readAsDataURL(f)})}
+function classClim(temp,lat){const a=Math.abs(lat);if(a<23.5)return'tropical';if(a<35)return temp>25?'subtropical':'mediterranean';if(a<60)return temp<5?'cold-temperate':'temperate';return'subarctic'}
+
+async function fetchWx(city){
+  const gr=await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${WEATHER_KEY}`);
+  const gd=await gr.json();if(!gd.length)throw new Error('City not found');
+  const {lat,lon,country}=gd[0];
+  const [wx,aq]=await Promise.all([
+    fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_KEY}&units=metric`).then(r=>r.json()),
+    fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${WEATHER_KEY}`).then(r=>r.json())
+  ]);
+  return{city:wx.name,country,lat,lon,temp:Math.round(wx.main.temp),humidity:wx.main.humidity,
+    description:wx.weather[0].description,climate:classClim(wx.main.temp,lat),
+    aqi:aq.list[0].main.aqi,aqiLabel:['','Good','Fair','Moderate','Poor','Very Poor'][aq.list[0].main.aqi],
+    pm25:aq.list[0].components.pm2_5.toFixed(1),pm10:aq.list[0].components.pm10.toFixed(1),no2:aq.list[0].components.no2.toFixed(1)};
+}
+
+async function callGemini(b64s,env,people){
+  const parts=[...b64s.map(b=>({inline_data:{mime_type:'image/jpeg',data:b}})),
+  {text:`You are an expert botanist, interior designer and air quality specialist.
+ENVIRONMENT: City:${env.city} ${env.country}|Climate:${env.climate}|Temp:${env.temp}C|Humidity:${env.humidity}%|Weather:${env.description}|AQI:${env.aqi}/5 (${env.aqiLabel})|PM2.5:${env.pm25}|Peak occupants:${people}
+Analyze room photos: room type, size(small/medium/large), light sources+positions, light quality(bright_direct/bright_indirect/low_light/very_low_light), aesthetic(MUST be one of:modern/minimalist/cozy/industrial/traditional/bohemian), color palette.
+Respond ONLY with raw JSON no markdown no backticks:
+{"room_analysis":{"room_type":"","size":"","light_quality":"","light_sources":[""],"aesthetic":"","color_palette":"","occupancy_concern":""},"plants":[{"name":"","scientific":"","emoji":"","air_benefit":"","o2_boost":"low|medium|high|very_high","placement":"","light_need":"","why_placed_here":"","care_level":"easy|moderate|demanding","aesthetic_fit":8,"aesthetic_reason":"","people_benefit":"","watering":"","interesting_fact":""}],"overall_impact":"","priority_order":""}
+Exactly 5 plants.`}];
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_KEY}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts}],generationConfig:{temperature:.35,maxOutputTokens:3500}})});
+  const d=await res.json();if(d.error)throw new Error('Gemini: '+d.error.message);
+  return JSON.parse(d.candidates[0].content.parts[0].text.replace(/```json|```/g,'').trim());
+}
+
+function aqiCol(n){return['','#22c55e','#86efac','#eab308','#f97316','#ef4444'][n]||'#888'}
+function aqiBg(n){return['','rgba(34,197,94,.12)','rgba(134,239,172,.12)','rgba(234,179,8,.12)','rgba(249,115,22,.12)','rgba(239,68,68,.12)'][n]||'rgba(255,255,255,.05)'}
+function o2p(l){return{low:25,medium:50,high:75,very_high:100}[l]||50}
+
+function renderResults(env,data){
+  document.getElementById('env-card-wrap').innerHTML=`<div class="env-card"><div class="env-row"><div><div class="env-city">${env.city}, ${env.country}</div><div class="env-meta">${env.description} &middot; ${env.temp}&deg;C &middot; ${env.humidity}% humidity &middot; ${env.climate}</div></div><div class="env-tags"><span class="aqi-badge" style="background:${aqiBg(env.aqi)};color:${aqiCol(env.aqi)}">AQI ${env.aqi} &middot; ${env.aqiLabel}</span><span class="tag">PM2.5 ${env.pm25}</span><span class="tag">NO&sup2; ${env.no2}</span></div></div></div>`;
+  const ra=data.room_analysis;
+  document.getElementById('room-chips').innerHTML=`<span class="room-chip">&#127968; ${ra.room_type}</span><span class="room-chip">&#128208; ${ra.size}</span><span class="room-chip">&#9728; ${(ra.light_quality||'').replace(/_/g,' ')}</span><span class="room-chip">&#127912; ${ra.aesthetic}</span>`;
+  document.getElementById('impact-wrap').innerHTML=`<div class="impact-banner"><div class="impact-label">Combined air impact</div><div class="impact-text">${data.overall_impact}</div><div class="impact-priority">&#127807; Start with: ${data.priority_order}</div></div>`;
+  const list=document.getElementById('plants-list');list.innerHTML='';
+  data.plants.forEach((p,i)=>{
+    const cc={easy:'care-easy',moderate:'care-moderate',demanding:'care-demanding'}[p.care_level]||'care-easy';
+    const div=document.createElement('div');div.className='plant-card';
+    div.innerHTML=`<div class="plant-card-top"><div class="plant-emoji">${p.emoji||'&#127807;'}</div><div class="plant-info"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px"><div><div class="plant-name">${i+1}. ${p.name}</div><div class="plant-sci">${p.scientific}</div></div><span class="care-badge ${cc}">${p.care_level}</span></div><div class="plant-tags"><span class="tag" style="background:rgba(74,184,212,.1);color:#4ab8d4">&#127783; ${p.air_benefit}</span>${p.light_need!=='any'?`<span class="tag" style="background:rgba(212,148,42,.1);color:#d4942a">&#9728; ${(p.light_need||'').replace(/_/g,' ')}</span>`:''}</div><div style="margin-top:8px"><div style="font-size:.7rem;color:var(--text3);margin-bottom:3px">O&sup2; output</div><div class="o2-bar"><div class="o2-fill" style="width:${o2p(p.o2_boost)}%"></div></div></div></div></div><div class="plant-detail"><div class="placement-box"><div class="placement-label">&#128205; Placement</div><div class="placement-text">${p.placement}</div><div class="placement-why">${p.why_placed_here}</div></div><div class="detail-grid"><div class="detail-cell"><div class="detail-cell-label">Watering</div><div class="detail-cell-val">&#128167; ${p.watering}</div></div><div class="detail-cell"><div class="detail-cell-label">Aesthetic fit</div><div class="detail-cell-val">&#10024; ${p.aesthetic_fit}/10</div></div></div><div class="detail-cell" style="margin-bottom:8px"><div class="detail-cell-label">People benefit</div><div class="detail-cell-val" style="font-size:.78rem">${p.people_benefit}</div></div><div class="fact-box"><div class="fact-label">Did you know</div>${p.interesting_fact}</div></div>`;
+    div.addEventListener('click',()=>{document.querySelectorAll('.plant-card').forEach((c,ci)=>c.classList.toggle('active',ci===i));highlightPlant(i);});
+    list.appendChild(div);
+  });
+}
+
+analyzeBtn.addEventListener('click',async()=>{
+  const city=cityInput.value.trim(),people=parseInt(peopleInput.value)||2;
+  errBox.style.display='none';showScreen('loading');setSt('Analyzing...');setStep(0);
+  try{
+    let env;
+    try{env=await fetchWx(city);}catch(e){env={city,country:'IN',lat:22.7,lon:75.8,temp:28,humidity:68,description:'partly cloudy',climate:'tropical',aqi:3,aqiLabel:'Moderate',pm25:'34.2',pm10:'52.1',no2:'18.5'};}
+    setStep(1);
+    const b64s=await Promise.all(images.map(toB64));setStep(2);
+    setStep(3);
+    const data=await callGemini(b64s,env,people);setStep(4);
+    const ae=(data.room_analysis?.aesthetic||'modern').toLowerCase();
+    const mapped=['minimalist','industrial','cozy','bohemian','traditional','modern'].find(a=>ae.includes(a))||'modern';
+    plantRefs=buildRoom(mapped,data.plants||[]);
+    renderResults(env,data);showScreen('results');setSt('Analysis complete');
+    document.getElementById('canvas-label').textContent='Drag to orbit \u00b7 Click numbered plants \u00b7 Scroll to zoom';
+  }catch(e){showScreen('upload');errBox.style.display='block';errBox.textContent='\u26a0 '+e.message;setSt('Error');}
+});
+
+document.getElementById('reset-btn').addEventListener('click',()=>{
+  images=[];renderThumbs();updateBtn();cityInput.value='';plantRefs=[];buildRoom('modern',[]);showScreen('upload');setSt('Ready');
+  sph={theta:Math.PI/4,phi:Math.PI/3,r:12};updCam();
+});
+</script>
+</body>
+</html>
